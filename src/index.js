@@ -1,5 +1,5 @@
 const express = require('express');
-const { uuid } = require('uuidv4');
+const { uuid, isUuid } = require('uuidv4');
 
 const app = express();
 
@@ -23,7 +23,49 @@ app.use(express.json());
   * Request Body: Conteúdo na hora criar ou editar um recurso (JSON)
   */
 
+  /**
+   * Middleware
+   * 
+   * Interceptador de requisições
+   * que pode interromper totalmente ou alterar dados da requisição
+   */
+
 const projects = [];
+
+function logRequest(request, response, next) {
+  const { method, url } = request;
+
+  const logLabel = `[${method.toUpperCase()}] ${url}`;
+
+  console.time(logLabel);
+
+  next();
+
+  console.timeEnd(logLabel);
+}
+
+function validateFields(request, resposnse, next) {
+  const { title, owner } = request.body;
+
+  if (!title || !owner) {
+    return resposnse.status(400).json({ error:'Required title and owner fields.'})
+  }
+
+  return next();
+}
+
+function validateId(request, response, next) {
+  const { id } = request.params;
+
+  if (!isUuid(id)) {
+    return response.status(400).json({ error:'Invalid project id.'});
+  }
+
+  return next();
+}
+
+app.use(logRequest);
+app.use('/projects/:id', validateId);
 
 app.get('/projects', (request, response) => {
   const { title } = request.query;
@@ -35,7 +77,7 @@ app.get('/projects', (request, response) => {
   return response.json(result);
 });
 
-app.post('/projects', (request, response) => {
+app.post('/projects', validateFields, (request, response) => {
   const { title, owner } = request.body;
   const project = { id:uuid(), title, owner };
 
@@ -44,7 +86,7 @@ app.post('/projects', (request, response) => {
   return response.json(project);
 });
 
-app.put('/projects/:id', (request, response) => {
+app.put('/projects/:id', validateFields, (request, response) => {
   const { id } = request.params;
   const { title, owner } = request.body;
 
@@ -74,7 +116,6 @@ app.delete('/projects/:id', (request, response) => {
   //É recomendado o status 204 qdo retornar vazio
   return response.status(204).send();
 });
-
 
 app.listen(3333, () => {
   console.log('🚀 Backend started!');
